@@ -1,8 +1,11 @@
 // webpack 静态模块打包工具,会在内部构建一个依赖图. 通过入口文件,查找依赖,使用loader,plugin进行打包.
+const webpack = require('webpack');
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');// 生成html
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');//清空文件
 const MiniCssExtractPlugin = require('mini-css-extract-plugin'); //提取css为单独文件
+const HtmlWebpackExternalsPlugin = require('html-webpack-externals-plugin');//配置cdn的方式引入js
+const CopyWebpackPlugin = require('copy-webpack-plugin');//拷贝文件
 /*
 压缩js文件（用其中一个）
 uglifyjs-webpack-plugin: 不支持es6语法
@@ -66,7 +69,22 @@ module.exports = {
 		contentBase: path.join(__dirname,'dist'), // 配置开发服务运行时的文件跟目录
 		port: 8080, //端口号
 		host: 'localhost',//主机
-		compress: true //是否启动gzip等压缩
+		compress: true ,//是否启动gzip等压缩
+		//代理
+		proxy: {
+			'/api': {
+				target: 'http://localhost:3000',
+				pathRewrite: {
+					'^/api': ''
+				}
+			},
+			'/res': {
+				target: 'http://localhost:3000',
+				pathRewrite: {
+					'^/res': ''
+				}
+			}
+		}
 	},
 	//这里放优化的内容
 	optimization: {
@@ -82,7 +100,31 @@ module.exports = {
 			new CssMinimizerWebpackPlugin()
 		]
 	},
+	/*
+	排除依赖,外部已经引入，不需要打包了 (使用html-webpack-externals-plugin不需要手动引入)
+	步骤： 1. 外部引入，如html中 <script src="https://code.jquery.com/jquery-3.1.0.js"></script>
+	      2. 在externals 配置，key是包名，value是指定全局变量
+		  3.在使用的地方引入 ，比如： import jQuery from 'jquery'
+	*/
+	// externals: {
+	// 	jquery: 'jQuery'
+	// },
+	/*
+	设置模块如何被解析
+	设置查找文件路径的规则
+	*/
+	resolve: {
+		extensions: ['.js', '.vue','.json'], //按顺序解析这些后缀名,找到之后就不再往后找
+		//别名
+		alias: {
+			'@': path.join(__dirname,'src')
+		}
+	},
 	module: {
+		/*
+		不解析的文件: 文件中不应该含有 import, require, define 的调用，或任何其他导入机制
+		*/
+		// noParse: /jquery|lodash/,
 		rules: [
 			/*
 			处理css
@@ -145,7 +187,7 @@ module.exports = {
 				// 	//预设：指示babel做什么样的兼容性处理
 				// 	presets: ['@babel/preset-env']
 				// }
-			}
+			},
 			// 第二种： 下载@babel/polyfill ，然后再需要的地方直接引入 import '@babel/polyfill'
 			//第三种： 按需加载，下载core-js
 			// {
@@ -177,10 +219,55 @@ module.exports = {
 			// 		]
 			// 	}
 			// }
-			
 		]
 	},
 	plugins: [
+		/*
+		允许在 编译时 创建配置的全局常量
+		*/
+		new webpack.DefinePlugin({
+			aa: JSON.stringify(124)
+		}),
+		/*
+		该每个打包文件注入内容*/
+		// new webpack.BannerPlugin('BannerPlugin插件的使用'),
+		/*
+		1. 使用ProvidePlugin后会比一直引入减小打包体积吗？
+		   不会，还是会打包进去
+		2. 使用ProvidePlugin有哪些注意事项？
+		   用唯一性高的变量
+		3. 注入的ProvidePlugin是一个什么东西？
+		     是一个hooks函数。
+			 hooks () {
+		        return hookCallback.apply(null, arguments);
+		     }
+			 
+		这个插件，会自动向所有的模块注入变量，引用的就是对应模块
+		这种注入模块相当于向模块内部注入了一个局部变量 
+		（可以在其他地方使用expose-loader允许暴露一个模块（整体或者部分）给全局对象）
+		*/
+		// new webpack.ProvidePlugin({
+		// 	_: 'loadsh'
+		// }),
+		/*
+		 * cdn方式引入js
+		 */
+		new HtmlWebpackExternalsPlugin({
+			externals: [
+				{
+					module: 'jquery', //模块名
+					entry: 'https://code.jquery.com/jquery-3.1.0.js',//cdn路径
+					global: 'jQuery' //从全局对象上的哪个属性获取导出的值
+				}
+			]
+		}),
+		//拷贝文件
+		new CopyWebpackPlugin({
+			patterns: [{
+				from: path.join(__dirname,'static'),
+				to: path.join(__dirname,'dist/static')
+			}]
+		}),
 		//生成html文件
 		new HtmlWebpackPlugin({
 			template: './src/index.html',// html模板
