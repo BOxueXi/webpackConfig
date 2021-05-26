@@ -120,6 +120,15 @@ module.exports = {
 			'@': path.join(__dirname,'src')
 		}
 	},
+	/*
+	和resolve 对象的属性集合相同，仅用于解析 webpack 的 loader 包
+	默认：如下
+	*/
+	// resolveLoaderL:{
+	// 	modules: ['node_modules'],
+	// 	extensions: ['.js', '.json'],
+	// 	mainFields: ['loader', 'main']
+	// },
 	module: {
 		/*
 		不解析的文件: 文件中不应该含有 import, require, define 的调用，或任何其他导入机制
@@ -275,6 +284,7 @@ module.exports = {
 			hash: true,// 为了避免缓存，文件名后面会添加hash值 ?hash值
 			chunks: ['main'], // 指定在html会引入的js(chunk)文件,不设置会引入所有的文件
 			chunksSortMode: 'manual', //对引入的代码块进行排序的模式
+			// chunkFilename: '[name].bundle.js'，//它决定(非入口 chunk) 的名称
 		}),
 		//清空文件
 		new CleanWebpackPlugin(),
