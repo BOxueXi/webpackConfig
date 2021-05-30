@@ -23,4 +23,12 @@
 // })
 // // console.log(_.join('a','b','c','d'));
 // console.log(jQuery);
-// console.log(window.jQuery);
+// // console.log(window.jQuery);
+// import(/* webpackChunkName: 'a' */'./a.js').then(res=>{
+// 	console.logres
+// })
+// import(/*webpackChunkName: 'b'*/'./b.js').then(res=>{
+// 	console.logres
+// })
+import './a.js'
+import './b.js'

@@ -57,15 +57,20 @@ module.exports = {
 	// 提供 mode 配置选项，告知 webpack 使用相应环境的内置优化。development,production,none
 	mode: 'development',
 	//入口文件： 值可以是 字符串，数组，对象
-	entry: './src/main.js',
+	// entry: './src/main.js',
+	entry: {
+		index: './src/main.js',
+		other: './src/other.js'
+	},
 	//打包输出目录
 	output: {
 		path: path.join(__dirname,'dist'), //输出的目录，只能是绝对路径
-		filename: 'js/bundle.js', //输出的文件名，如果的多页面（多入口）需要使用占位符 [hash],[contenthash]
+		filename: 'js/[name].js', //输出的文件名，如果的多页面（多入口）需要使用占位符 [hash],[contenthash]
 		publicPath: '/' //根路径
 	},
 	//webpack-dev-server 会把文件写到内存中，提供速度
 	devServer: {
+		hit: true,//热更新
 		contentBase: path.join(__dirname,'dist'), // 配置开发服务运行时的文件跟目录
 		port: 8080, //端口号
 		host: 'localhost',//主机
@@ -98,7 +103,31 @@ module.exports = {
 			// })
 			//压缩css
 			new CssMinimizerWebpackPlugin()
-		]
+		],
+        /*
+        单页应用过程中的代码分割:是通过webpack的写法和内置函数实现的,因为是单页应用，所以只要引用入口文件即可
+        目前webpack针对此项功能提供 2 种函数：
+        1.import(): 引入之后会自动执行相关js代码
+        2.require.ensure(): 引入不会自动执行js代码,需要手动执行相关js代码
+        */
+        //分割代码块（针对多页面打包,通过webpack配置）
+        splitChunks: {
+        	cacheGroups: { //缓存组
+        		common: { //公共的模块
+        			chunks: 'initial',
+        			minSize: 0,
+        			minChunks:2
+        		},
+        		//抽离第三方模块
+        		vendor: {
+        			priority: 1, //优先级，值越大优先级越高 
+        			test: /node_modules/,
+        			chunks: 'initial',
+        			minSize: 0,
+        			minChunks: 2
+        		}
+        	}
+        }
 	},
 	/*
 	排除依赖,外部已经引入，不需要打包了 (使用html-webpack-externals-plugin不需要手动引入)
@@ -131,9 +160,9 @@ module.exports = {
 	// },
 	module: {
 		/*
-		不解析的文件: 文件中不应该含有 import, require, define 的调用，或任何其他导入机制
+		不解析模块中的依赖关系（提高打包速度）:  文件中不应该含有 import, require, define 的调用，或任何其他导入机制
 		*/
-		// noParse: /jquery|lodash/,
+		// noParse: /jquery|lodash/, //不解析模块中的依赖，但会打包
 		rules: [
 			/*
 			处理css
@@ -232,6 +261,13 @@ module.exports = {
 	},
 	plugins: [
 		/*
+		防止在 import 或 require 调用时，生成以下正则表达式匹配的模块:
+		requestRegExp 匹配(test)资源请求路径的正则表达式。
+        contextRegExp （可选）匹配(test)资源上下文（目录）的正则表达式。
+        new webpack.IgnorePlugin(requestRegExp, [contextRegExp])
+		*/
+		new webpack.IgnorePlugin(/^\.\/locale$/, /moment$/),
+		/*
 		允许在 编译时 创建配置的全局常量
 		*/
 		new webpack.DefinePlugin({
@@ -280,18 +316,39 @@ module.exports = {
 		//生成html文件
 		new HtmlWebpackPlugin({
 			template: './src/index.html',// html模板
-			filename: 'index.html', //文件名
+			filename: 'other.html', //文件名
 			hash: true,// 为了避免缓存，文件名后面会添加hash值 ?hash值
-			chunks: ['main'], // 指定在html会引入的js(chunk)文件,不设置会引入所有的文件
+			chunks: ['other'], // 指定在html会引入的js(chunk)文件,不设置会引入所有的文件
 			chunksSortMode: 'manual', //对引入的代码块进行排序的模式
-			// chunkFilename: '[name].bundle.js'，//它决定(非入口 chunk) 的名称
+			chunkFilename: '[id].bundle.js',//它决定(非入口 chunk) 的名称(异步)
 		}),
+		// new HtmlWebpackPlugin({
+		// 	template: './src/index.html',// html模板
+		// 	filename: 'index.html', //文件名
+		// 	hash: true,// 为了避免缓存，文件名后面会添加hash值 ?hash值
+		// 	chunks: ['index'], // 指定在html会引入的js(chunk)文件,不设置会引入所有的文件
+		// 	chunksSortMode: 'manual', //对引入的代码块进行排序的模式
+		// 	chunkFilename: '[id].bundle.js',//它决定(非入口 chunk) 的名称(异步)
+		// }),
 		//清空文件
 		new CleanWebpackPlugin(),
 		//提取css为单独文件
 		new MiniCssExtractPlugin({
 			filename: 'css/[name]_[contenthash:8].css',//代码块chunk的名字
 			chunkFilename: '[id].css' //在异步加载时使用
-		})
+		}),
+		/*
+		热更新
+		1.在devServer配置hot: true
+		2.配置插件： webpack.NamedModulesPlugin()，webpack.HotModulReplacementPlugin()
+		3.在要更新的文件中写类似代码:
+		if（module.hot）{
+			module.hot.accept('要热更新的文件路径',()=>{
+				require('要热更新的文件路径')
+			})
+		}
+		*/
+		new webpack.NamedModulesPlugin(),//打印更新的模块路径
+		new webpack.HotModulReplacementPlugin() //热更新插件
 	]
 }
